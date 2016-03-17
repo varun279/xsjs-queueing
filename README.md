@@ -141,4 +141,4 @@ Test could be found under `Queueing/tests` folder
 
 ## Todos
  - add priority
- - switch to NodeJS and forget about XS hell
+
