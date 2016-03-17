@@ -1,0 +1,26 @@
+namespace sap.translsvc.libs.Queueing.tests;
+
+@Schema: 'SAP_HANA_TEST'
+
+
+    @Catalog.tableType: #ROW
+  
+    @Catalog.index: [ { name : 'status_idx', unique : false, order : #ASC, elementNames : ['STATUS'] },
+                      { name : 'groupid_idx', unique : false, order : #ASC, elementNames : ['GROUP_ID'] } ] 
+     
+    Entity TestQueue { 
+        
+	    key ID : String(32); //guid; 
+	    GROUP_ID : String(32); //guid
+	    STATUS : hana.TINYINT;
+	    REQUEST : LargeString;
+	    RESPONSE : LargeString;
+	    ADDED_AT : UTCDateTime;
+	    STARTED_AT : UTCDateTime;
+	    FINISHED_AT : UTCDateTime;
+	    ERROR : LargeString;
+	    RETRY : hana.TINYINT not null default 0;
+	
+    };         
+
+  

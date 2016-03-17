@@ -1,0 +1,10 @@
+ {
+    "description": "Watch test queue ",
+    "action": "sap.translsvc.libs.Queueing.tests:TestQueueProcessor.xsjs::watch",
+     "schedules": [  {
+          "description": "Watch Queue",
+          "xscron": "* * * * * * 0:59/1"
+      
+       }
+       ]
+} 
