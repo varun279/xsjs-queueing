@@ -16,12 +16,14 @@ var groupid = $.util.createUuid();
 ## Motivation
 
 SAP HANA XS JS it executes code sequentialy. In order to improve the performance parallel processing could be used. This library helps to achieve this. **After SPS 11 there is no need to use this library as NodeJS could be used. It is event-driven and non-blocking by design**.
-### features
+#### Features
 * parallel processing 
 * ability to specify the number of paralell processors for a queue
 * ability to set timeouts
 * ability to retry if timeout/failures (could be useful when calling third parties over http)
 
+## How it works   
+One XS Job is constantly looking for arrival of new requests  in the queue. If new requests arrive - new jobs that process those requests are created and immediately executed in parallel. The maximum number of jobs scheduled (threads) is specified in queue parameters.
 
 ## Installation
 
@@ -141,4 +143,3 @@ Test could be found under `Queueing/tests` folder
 
 ## Todos
  - add priority
-
