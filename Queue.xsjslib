@@ -2,12 +2,6 @@ var sql = $.import("sap.translsvc.libs", "sql");
 var jobHelper = $.import("sap.translsvc.libs.Queueing", "JobHelper");
 
 
-//todo add timeout done
-//todo add jobs programattically? not sure
-
-//todo return errors second param
-//todo priority
-
 var Queue = (function() {
 
 	var Status = {
