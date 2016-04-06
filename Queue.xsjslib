@@ -1,6 +1,6 @@
 var sql = $.import("sap.translsvc.libs", "sql");
 var jobHelper = $.import("sap.translsvc.libs.Queueing", "JobHelper");
-//var delay = $.import("sap.translsvc.xsServices.STH.TO", "delaytest");
+
 
 //todo add timeout done
 //todo add jobs programattically? not sure
