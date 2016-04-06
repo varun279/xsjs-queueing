@@ -1,5 +1,6 @@
 var sql = $.import("sap.translsvc.libs", "sql");
 var jobHelper = $.import("sap.translsvc.libs.Queueing", "JobHelper");
+//var delay = $.import("sap.translsvc.xsServices.STH.TO", "delaytest");
 
 //todo add timeout done
 //todo add jobs programattically? not sure
@@ -57,11 +58,12 @@ var Queue = (function() {
 	}
 
 	function Queue(queueOptions) {
+	    
 		this.options = queueOptions;
-		
-		
-        var jobPath = "/" + this.options.jobProcessorName.replace(".","/").replace("::", "/") + ".xsjob";		             	
-		this.options.job =   $.jobs.Job({uri:	"/sap/translsvc/xsServices/STH/TO/TranslationQueueProcessor.xsjob"});
+
+        var jobPath = "/" + this.options.jobProcessorName.replace(/\./g,"/").replace("::", "/") + ".xsjob";	             	
+
+		this.options.job =   $.jobs.Job({uri:	jobPath});
 		jobHelper.init(this.options);
 		
  
@@ -88,20 +90,26 @@ var Queue = (function() {
 			Status.added);
 			
 		connection.commit();
-		
-		
-// 		connection.executeInsertFromObject(this.options.queueTableName, {
-// 			ID: id,
-// 			GROUP_ID: groupId,
-// 			ADDED_AT: new Date(),
-// 			REQUEST: request,
-// 			STATUS: Status.added
-
-// 		});
-
+	
 		return id;
 	};
 
+
+	Queue.prototype.removeOldFromQueue = function() {
+
+
+        if (this.options.keepQueueRequestsDays === undefined)
+         this.options.keepQueueRequestsDays = 30;
+
+		var connection = $.hdb.getConnection();
+		
+		
+		connection.executeUpdate('delete from  ' + this.options.queueTableName + '  where  SECONDS_BETWEEN(ADDED_AT, current_timestamp) > ?' , this.options.keepQueueRequestsDays * 86400);
+			
+		connection.commit();
+	
+	};
+	
 	//mark as finished
 	Queue.prototype.finish = function(id, response) {
 
@@ -193,9 +201,7 @@ var Queue = (function() {
 	Queue.prototype.getFirstAndMarkStarted = function() {
 
 		var connection = $.hdb.getConnection();
-		
-		//var query = 'select top 1 *  from  ' + this.options.queueTableName + ' where STATUS = 0';
-		
+	
 		
 		var getFirstItemThatHasLessBatchSizeAndApplyLittleRandomization = 'select top 1 t.*, priorityOrder from  ' + this.options.queueTableName + '  t ' + 
                     ' inner join ( ' +
@@ -217,20 +223,32 @@ var Queue = (function() {
 	};
 
 	//wait till all items with particular GROUP_ID will be processed 
+    //!! do not  use it  because of the Loop that consumes CPU, please check wheter group is finished from consumer 
 	Queue.prototype.waitGroupToFinish = function(groupId) {
 
+        var pausecomp = function (millis)
+         {
+          var date = new Date();
+          var curDate = null;
+          do { curDate = new Date(); }
+          while(curDate-date < millis);
+        };
+
 		var connection = $.hdb.getConnection();
-		var runningExists = true;
-
-		while (runningExists) ////todo delay
+	
+		while (!this.isGroupFinished(groupId)) ////todo delay
 		{
-			var rs = connection.executeQuery('select count(*)  "cnt" from  ' + this.options.queueTableName +
-				' where  GROUP_ID = ? and (STATUS = 0 or STATUS = 1) ', groupId);
-			runningExists = rs[0].cnt > 0;
-
+		   pausecomp(300);
 		}
 
-		rs = connection.executeQuery('select * from  ' + this.options.queueTableName + ' where GROUP_ID = ?', groupId);
+		return this.getGroupResults(groupId);
+	};
+	
+	Queue.prototype.getGroupResults = function(groupId) {
+
+		var connection = $.hdb.getConnection();
+	
+		var rs = connection.executeQuery('select * from  ' + this.options.queueTableName + ' where GROUP_ID = ?', groupId);
 
 		return Object.keys(rs).map(function(row) {
 			return parseRow(rs[row]);
@@ -238,6 +256,37 @@ var Queue = (function() {
 		});
 
 	};
+
+    Queue.prototype.isGroupFinished = function(groupId) {
+
+		var connection = $.hdb.getConnection();
+		
+		var rs = connection.executeQuery('select count(*)  "cnt" from  ' + this.options.queueTableName +
+				' where  GROUP_ID = ? and (STATUS = 0 or STATUS = 1) ', groupId);
+		 
+		 return	  rs[0].cnt == 0;
+
+	};
+	
+	 Queue.prototype.groupStatus = function(groupId) {
+
+		var connection = $.hdb.getConnection();
+		
+		var rs = connection.executeQuery('select sum(total) total, sum(added) added, sum(processing) processing, sum(completed) completed, sum(error) error from ( ' +
+		
+    	 ' select case when status = 0 then 1 else 0  end added, ' + 
+    	 ' 1 total,' + 
+		 ' case when status = 1 then 1 else 0  end processing, ' + 
+		 ' case when status = 2 then 1 else 0  end completed, ' + 
+		 ' case when status = 3 then 1 else 0  end error  from '  + this.options.queueTableName + ' where GROUP_ID = ? )', groupId);
+		
+		if (rs[0] === undefined) return null;
+		
+		 return	  rs[0];
+
+	};
+
+
 
 	Queue.prototype.getQueueLength = function() {
 
@@ -256,7 +305,7 @@ var Queue = (function() {
 
 			if (this.getQueueLength() > 0) {
 
-				var currentlyrunningThreadsCount = this.getCurrentlyRunning(); //jobHelper.getRunningQueueProcessors().length;
+				var currentlyrunningThreadsCount = this.getCurrentlyRunning(); 
 
 				if (currentlyrunningThreadsCount < this.options.maxQueueProcessors) {
 
@@ -269,27 +318,26 @@ var Queue = (function() {
 				}
 			}
 			
-		//	this.checkTimeout();
-		//	this.deleteOldJobArtifacts();
 			
 		} catch (err) {
 
-			$.trace.error('job watch  ' + JSON.stringify(err));
+			$.trace.error('queuejob watch ' + JSON.stringify(err));
 
 		}
 
 	};
 	
-		//watch queue and spin new threads if items to process are found in queue
+	//watch queue and spin new threads if items to process are found in queue
 	Queue.prototype.maintenance = function() {
 
 		try {
 			this.checkTimeout();
 			this.deleteOldJobArtifacts();
+			this.removeOldFromQueue();
 			
 		} catch (err) {
 
-			$.trace.error('job watch  ' + JSON.stringify(err));
+			$.trace.error('queuejob maintenance  ' + JSON.stringify(err));
 
 		}
 
