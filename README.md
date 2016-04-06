@@ -11,7 +11,10 @@ Library that enables queueing and parallel processing in sequential SAP HANA XS 
 var groupid = $.util.createUuid();
     queue.add("test request", groupid);
     queue.add("test request", groupid);
-    var results = queue.waitGroupToFinish(groupid);
+ 
+ 
+ var currentStatus = queue.groupStatus(requestData.groupId);
+ var results = queue.getGroupResults(requestData.groupId);
 ```
 ## Motivation
 
